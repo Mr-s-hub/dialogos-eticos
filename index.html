@@ -259,6 +259,61 @@
   }
   @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
+
+  .dilemma-cover {
+    position: relative;
+    overflow: hidden;
+    background:
+      linear-gradient(135deg, rgba(143,63,24,0.14), rgba(28,25,23,0.08)),
+      radial-gradient(circle at 80% 20%, rgba(255,255,255,0.85), transparent 4rem);
+  }
+  .dilemma-cover::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.16) 100%);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .dilemma-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    filter: sepia(0.20) saturate(0.88) brightness(0.96) contrast(1.04);
+    transition: transform .7s ease, opacity .3s ease;
+    position: relative;
+    z-index: 1;
+  }
+  .group:hover .dilemma-cover img { transform: scale(1.045); }
+  .dilemma-cover-fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    text-align: center;
+    font-family: 'Fraunces', ui-serif, Georgia, serif;
+    font-size: clamp(2rem, 6vw, 4.6rem);
+    font-style: italic;
+    color: rgba(143, 63, 24, 0.30);
+    z-index: 0;
+  }
+  .cover-caption {
+    position: absolute;
+    left: .85rem;
+    right: .85rem;
+    bottom: .75rem;
+    z-index: 3;
+    color: rgba(255,255,255,0.94);
+    text-shadow: 0 1px 5px rgba(0,0,0,.65);
+    font-size: .68rem;
+    line-height: 1.2;
+    font-family: 'Fraunces', ui-serif, Georgia, serif;
+    font-style: italic;
+  }
+
   @media (max-width: 640px) {
     .logo-uach { position: absolute; }
     .hero-frame { max-height: 240px; }
@@ -304,9 +359,9 @@
   <main id="app" class="app-shell"></main>
   <div id="toast-root"></div>
 
-<script src="https://www.gstatic.com/firebasejs/12.12.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.12.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 
 <script>
 /*
@@ -317,8 +372,8 @@
 */
 
 // ============ UTILIDADES GENERALES ============
-const STORAGE_KEY = 'dialogosEticos.estado.v1';
-const PROGRESS_KEY = 'dialogosEticos.progresoAlumno.v1';
+const STORAGE_KEY = 'dialogosEticos.estado.v2';
+const PROGRESS_KEY = 'dialogosEticos.progresoAlumno.v2';
 const app = document.getElementById('app');
 const brandLogo = document.getElementById('brand-logo');
 
@@ -395,6 +450,21 @@ function firstTag(dilema) {
   return (dilema.etiquetas && dilema.etiquetas[0]) ? dilema.etiquetas[0] : 'Ética digital';
 }
 
+
+function coverHTML(dilema, index = 0, classes = 'h-full min-h-[150px]') {
+  const title = escapeHTML(dilema.imagenAlt || dilema.titulo || 'Imagen filosófica');
+  const src = dilema.imagenUrl ? escapeHTML(dilema.imagenUrl) : '';
+  const fallback = escapeHTML((dilema.titulo || 'φ').trim().charAt(0) || 'φ');
+  const caption = dilema.imagenAlt ? `<span class="cover-caption">${title}</span>` : '';
+  return `
+    <div class="dilemma-cover ${classes}">
+      <span class="dilemma-cover-fallback">${fallback}</span>
+      ${src ? `<img src="${src}" alt="${title}" loading="lazy" onerror="this.style.display='none';">` : ''}
+      <span class="absolute right-3 top-3 z-[3] rounded-full bg-white/82 px-3 py-1 serif text-sm text-amber-900 shadow-sm">${String(index + 1).padStart(2, '0')}</span>
+      ${caption}
+    </div>`;
+}
+
 function hasFirebaseConfig() {
   return firebaseConfig.apiKey && !firebaseConfig.apiKey.includes('PEGA_AQUI')
     && firebaseConfig.projectId && !firebaseConfig.projectId.includes('PEGA_AQUI');
@@ -437,6 +507,8 @@ function normalizeDilema(item = {}) {
     titulo: item.titulo || '',
     contexto: item.contexto || '',
     preguntaCentral: item.preguntaCentral || '',
+    imagenUrl: item.imagenUrl || '',
+    imagenAlt: item.imagenAlt || '',
     opciones: Array.isArray(item.opciones) ? item.opciones.map(op => ({
       texto: op.texto || '',
       retroalimentacion: {
@@ -506,120 +578,359 @@ async function replaceAllDilemmasInFirebase(dilemas) {
 // ============ DATOS INICIALES ============
 const seedDilemmas = [
   {
-    id: 'ia-tesis',
-    titulo: '¿Es éticamente válido usar IA para escribir tu tesis?',
-    contexto: 'Una estudiante de último semestre está preparando su trabajo de titulación. Tiene buenas ideas, pero poco tiempo para ordenar sus argumentos. Decide usar una herramienta de inteligencia artificial para generar borradores, mejorar la redacción y sugerir posibles estructuras.\nEl problema aparece cuando se pregunta hasta dónde llega la ayuda legítima y dónde comienza una forma de sustitución intelectual: ¿sigue siendo su trabajo si la IA redacta partes importantes del texto?',
-    preguntaCentral: '¿Puede considerarse honesto usar inteligencia artificial para escribir o mejorar un trabajo académico?',
-    opciones: [
+    "id": "ia-tesis",
+    "titulo": "¿Es éticamente válido usar IA para escribir tu tesis?",
+    "imagenUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Kant%20gemaelde%203.jpg?width=900",
+    "imagenAlt": "Immanuel Kant — retrato clásico",
+    "contexto": "Una estudiante de último semestre está preparando su trabajo de titulación. Tiene buenas ideas, pero poco tiempo para ordenar sus argumentos. Decide usar una herramienta de inteligencia artificial para generar borradores, mejorar la redacción y sugerir posibles estructuras.\nEl problema aparece cuando se pregunta hasta dónde llega la ayuda legítima y dónde comienza una forma de sustitución intelectual: ¿sigue siendo su trabajo si la IA redacta partes importantes del texto?",
+    "preguntaCentral": "¿Puede considerarse honesto usar inteligencia artificial para escribir o mejorar un trabajo académico?",
+    "opciones": [
       {
-        texto: 'Sí, siempre que la estudiante revise, comprenda y se responsabilice por el contenido final.',
-        retroalimentacion: {
-          postura: 'Ética de la responsabilidad y enfoque pragmático.',
-          fortalezas: 'Reconoce que las herramientas no son moralmente negativas por sí mismas. La clave está en el uso responsable, la comprensión del contenido y la transparencia cuando la institución lo exige.',
-          objeciones: 'Puede volverse difícil distinguir entre apoyo técnico y sustitución del pensamiento propio. Además, si no se declara el uso de IA, podría existir una zona gris de deshonestidad académica.',
-          autorReferencia: 'John Dewey; Hans Jonas.'
+        "texto": "Sí, siempre que la estudiante revise, comprenda y se responsabilice por el contenido final.",
+        "retroalimentacion": {
+          "postura": "Ética de la responsabilidad y enfoque pragmático.",
+          "fortalezas": "Reconoce que las herramientas no son moralmente negativas por sí mismas. La clave está en el uso responsable, la comprensión del contenido y la transparencia cuando la institución lo exige.",
+          "objeciones": "Puede volverse difícil distinguir entre apoyo técnico y sustitución del pensamiento propio. Además, si no se declara el uso de IA, podría existir una zona gris de deshonestidad académica.",
+          "autorReferencia": "John Dewey; Hans Jonas."
         }
       },
       {
-        texto: 'No, porque la tesis debe mostrar el pensamiento propio y no el resultado producido por una máquina.',
-        retroalimentacion: {
-          postura: 'Deontología y ética del deber.',
-          fortalezas: 'Defiende la honestidad académica como principio. Desde esta perspectiva, el valor del trabajo no está solo en el resultado, sino en el deber de producirlo mediante esfuerzo intelectual propio.',
-          objeciones: 'Puede ser una postura demasiado rígida si no distingue entre usar IA para corregir estilo, ordenar ideas o sustituir completamente el razonamiento.',
-          autorReferencia: 'Immanuel Kant.'
+        "texto": "No, porque la tesis debe mostrar el pensamiento propio y no el resultado producido por una máquina.",
+        "retroalimentacion": {
+          "postura": "Deontología y ética del deber.",
+          "fortalezas": "Defiende la honestidad académica como principio. Desde esta perspectiva, el valor del trabajo no está solo en el resultado, sino en el deber de producirlo mediante esfuerzo intelectual propio.",
+          "objeciones": "Puede ser una postura demasiado rígida si no distingue entre usar IA para corregir estilo, ordenar ideas o sustituir completamente el razonamiento.",
+          "autorReferencia": "Immanuel Kant."
         }
       },
       {
-        texto: 'Depende del beneficio: si mejora el aprendizaje y no perjudica a otros, podría aceptarse.',
-        retroalimentacion: {
-          postura: 'Utilitarismo.',
-          fortalezas: 'Evalúa las consecuencias. Si la IA permite aprender mejor, reducir barreras y producir un trabajo más claro, su uso puede justificarse por sus efectos positivos.',
-          objeciones: 'El criterio de utilidad puede justificar prácticas problemáticas si producen buenos resultados aparentes. También podría aumentar desigualdades entre quienes tienen acceso a mejores herramientas y quienes no.',
-          autorReferencia: 'John Stuart Mill; Jeremy Bentham.'
+        "texto": "Depende del beneficio: si mejora el aprendizaje y no perjudica a otros, podría aceptarse.",
+        "retroalimentacion": {
+          "postura": "Utilitarismo.",
+          "fortalezas": "Evalúa las consecuencias. Si la IA permite aprender mejor, reducir barreras y producir un trabajo más claro, su uso puede justificarse por sus efectos positivos.",
+          "objeciones": "El criterio de utilidad puede justificar prácticas problemáticas si producen buenos resultados aparentes. También podría aumentar desigualdades entre quienes tienen acceso a mejores herramientas y quienes no.",
+          "autorReferencia": "John Stuart Mill; Jeremy Bentham."
         }
       }
     ],
-    cierre: 'El dilema no se resuelve diciendo simplemente “sí” o “no”. La pregunta filosófica central es qué entendemos por autoría, aprendizaje y honestidad. Una postura equilibrada exigiría distinguir entre asistencia y sustitución: la IA puede apoyar el proceso, pero no debería reemplazar la comprensión, la deliberación ni la responsabilidad intelectual del estudiante.',
-    etiquetas: ['IA', 'Honestidad académica', 'Autoría'],
-    nivel: 'introductorio'
+    "cierre": "El dilema no se resuelve diciendo simplemente “sí” o “no”. La pregunta filosófica central es qué entendemos por autoría, aprendizaje y honestidad. Una postura equilibrada exigiría distinguir entre asistencia y sustitución: la IA puede apoyar el proceso, pero no debería reemplazar la comprensión, la deliberación ni la responsabilidad intelectual del estudiante.",
+    "etiquetas": [
+      "IA",
+      "Honestidad académica",
+      "Autoría"
+    ],
+    "nivel": "introductorio"
   },
   {
-    id: 'desconexion-redes',
-    titulo: '¿Vale la pena desconectarse de las redes sociales?',
-    contexto: 'Un grupo de estudiantes nota que pasa varias horas al día revisando redes sociales. Algunos dicen que las plataformas les ayudan a informarse, socializar y expresarse; otros sienten ansiedad, comparación constante y dificultad para concentrarse.\nUna profesora propone hacer una semana de desconexión digital. La propuesta genera debate: ¿sería una forma de recuperar libertad o una renuncia ingenua a espacios donde también ocurre la vida pública contemporánea?',
-    preguntaCentral: '¿Desconectarse de las redes sociales aumenta nuestra libertad o nos aísla de la realidad actual?',
-    opciones: [
+    "id": "desconexion-redes",
+    "titulo": "¿Vale la pena desconectarse de las redes sociales?",
+    "imagenUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Aristotle%20with%20a%20Bust%20of%20Homer.jpg?width=1024",
+    "imagenAlt": "Aristóteles contemplando el busto de Homero — Rembrandt",
+    "contexto": "Un grupo de estudiantes nota que pasa varias horas al día revisando redes sociales. Algunos dicen que las plataformas les ayudan a informarse, socializar y expresarse; otros sienten ansiedad, comparación constante y dificultad para concentrarse.\nUna profesora propone hacer una semana de desconexión digital. La propuesta genera debate: ¿sería una forma de recuperar libertad o una renuncia ingenua a espacios donde también ocurre la vida pública contemporánea?",
+    "preguntaCentral": "¿Desconectarse de las redes sociales aumenta nuestra libertad o nos aísla de la realidad actual?",
+    "opciones": [
       {
-        texto: 'Desconectarse es una forma de recuperar autonomía frente a plataformas diseñadas para capturar atención.',
-        retroalimentacion: {
-          postura: 'Ética de la virtud y crítica de la técnica.',
-          fortalezas: 'Subraya la importancia del autocontrol, la atención y la vida interior. La libertad no consiste solo en elegir, sino en no ser gobernado por hábitos impuestos desde fuera.',
-          objeciones: 'Puede ignorar que las redes también permiten organización social, acceso a información y vínculos significativos para muchas personas.',
-          autorReferencia: 'Aristóteles; Byung-Chul Han.'
+        "texto": "Desconectarse es una forma de recuperar autonomía frente a plataformas diseñadas para capturar atención.",
+        "retroalimentacion": {
+          "postura": "Ética de la virtud y crítica de la técnica.",
+          "fortalezas": "Subraya la importancia del autocontrol, la atención y la vida interior. La libertad no consiste solo en elegir, sino en no ser gobernado por hábitos impuestos desde fuera.",
+          "objeciones": "Puede ignorar que las redes también permiten organización social, acceso a información y vínculos significativos para muchas personas.",
+          "autorReferencia": "Aristóteles; Byung-Chul Han."
         }
       },
       {
-        texto: 'No conviene desconectarse: lo importante es aprender a usar las redes con criterio crítico.',
-        retroalimentacion: {
-          postura: 'Pragmatismo educativo y ciudadanía digital.',
-          fortalezas: 'Propone formar hábitos de uso crítico en lugar de abandonar el espacio digital. Reconoce que las redes son parte del mundo social y político contemporáneo.',
-          objeciones: 'Puede subestimar el poder persuasivo del diseño algorítmico. No siempre basta con “usar bien” una herramienta que está diseñada para maximizar permanencia y reacción emocional.',
-          autorReferencia: 'John Dewey; Luciano Floridi.'
+        "texto": "No conviene desconectarse: lo importante es aprender a usar las redes con criterio crítico.",
+        "retroalimentacion": {
+          "postura": "Pragmatismo educativo y ciudadanía digital.",
+          "fortalezas": "Propone formar hábitos de uso crítico en lugar de abandonar el espacio digital. Reconoce que las redes son parte del mundo social y político contemporáneo.",
+          "objeciones": "Puede subestimar el poder persuasivo del diseño algorítmico. No siempre basta con “usar bien” una herramienta diseñada para maximizar permanencia y reacción emocional.",
+          "autorReferencia": "John Dewey; Luciano Floridi."
         }
       },
       {
-        texto: 'Depende de cada persona: si las redes causan daño, desconectarse puede ser moralmente necesario.',
-        retroalimentacion: {
-          postura: 'Ética del cuidado.',
-          fortalezas: 'Atiende la vulnerabilidad concreta de cada sujeto. No universaliza una respuesta: considera bienestar emocional, relaciones y condiciones personales.',
-          objeciones: 'Puede quedarse en una solución individual y dejar intacto el problema estructural del diseño de plataformas que explotan la atención.',
-          autorReferencia: 'Carol Gilligan; Nel Noddings.'
+        "texto": "Depende de cada persona: si las redes causan daño, desconectarse puede ser moralmente necesario.",
+        "retroalimentacion": {
+          "postura": "Ética del cuidado.",
+          "fortalezas": "Atiende la vulnerabilidad concreta de cada sujeto. No universaliza una respuesta: considera bienestar emocional, relaciones y condiciones personales.",
+          "objeciones": "Puede quedarse en una solución individual y dejar intacto el problema estructural del diseño de plataformas que explotan la atención.",
+          "autorReferencia": "Carol Gilligan; Nel Noddings."
         }
       }
     ],
-    cierre: 'La desconexión puede ser una práctica filosófica si permite examinar nuestros hábitos, pero no debería convertirse en una huida simplista. El problema central no es solo estar o no estar en redes, sino preguntarnos qué tipo de sujetos nos volvemos al usarlas: más atentos, más libres, más capaces de dialogar; o más reactivos, dependientes y fragmentados.',
-    etiquetas: ['Redes sociales', 'Libertad', 'Atención'],
-    nivel: 'introductorio'
+    "cierre": "La desconexión puede ser una práctica filosófica si permite examinar nuestros hábitos, pero no debería convertirse en una huida simplista. El problema central no es solo estar o no estar en redes, sino preguntarnos qué tipo de sujetos nos volvemos al usarlas: más atentos, más libres, más capaces de dialogar; o más reactivos, dependientes y fragmentados.",
+    "etiquetas": [
+      "Redes sociales",
+      "Libertad",
+      "Atención"
+    ],
+    "nivel": "introductorio"
   },
   {
-    id: 'privacidad-smartphone',
-    titulo: '¿Aceptarías vigilancia digital a cambio de seguridad?',
-    contexto: 'Una ciudad propone instalar una aplicación obligatoria en los teléfonos de los estudiantes para mejorar la seguridad escolar. La app permite alertas de emergencia y ubicación en tiempo real, pero también recopila datos de movimiento, horarios y contactos frecuentes.\nLas autoridades afirman que el sistema puede prevenir riesgos. Algunas familias lo apoyan; otras temen que la vigilancia se normalice y que los datos sean usados para fines distintos a la protección.',
-    preguntaCentral: '¿Es justificable sacrificar privacidad personal para obtener mayor seguridad colectiva?',
-    opciones: [
+    "id": "privacidad-smartphone",
+    "titulo": "¿Aceptarías vigilancia digital a cambio de seguridad?",
+    "imagenUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Socrates%20Louvre.jpg?width=900",
+    "imagenAlt": "Sócrates — busto romano conservado en el Louvre",
+    "contexto": "Una ciudad propone instalar una aplicación obligatoria en los teléfonos de los estudiantes para mejorar la seguridad escolar. La app permite alertas de emergencia y ubicación en tiempo real, pero también recopila datos de movimiento, horarios y contactos frecuentes.\nLas autoridades afirman que el sistema puede prevenir riesgos. Algunas familias lo apoyan; otras temen que la vigilancia se normalice y que los datos sean usados para fines distintos a la protección.",
+    "preguntaCentral": "¿Es justificable sacrificar privacidad personal para obtener mayor seguridad colectiva?",
+    "opciones": [
       {
-        texto: 'Sí, si la medida reduce riesgos graves y beneficia a la mayoría.',
-        retroalimentacion: {
-          postura: 'Utilitarismo aplicado a políticas públicas.',
-          fortalezas: 'Considera el bienestar colectivo y la prevención de daños. Si el beneficio social es alto, la medida puede parecer razonable.',
-          objeciones: 'Puede justificar abusos si la utilidad colectiva se impone siempre sobre derechos individuales. La privacidad no es un lujo, sino una condición de libertad.',
-          autorReferencia: 'John Stuart Mill.'
+        "texto": "Sí, si la medida reduce riesgos graves y beneficia a la mayoría.",
+        "retroalimentacion": {
+          "postura": "Utilitarismo aplicado a políticas públicas.",
+          "fortalezas": "Considera el bienestar colectivo y la prevención de daños. Si el beneficio social es alto, la medida puede parecer razonable.",
+          "objeciones": "Puede justificar abusos si la utilidad colectiva se impone siempre sobre derechos individuales. La privacidad no es un lujo, sino una condición de libertad.",
+          "autorReferencia": "John Stuart Mill."
         }
       },
       {
-        texto: 'No, porque la privacidad es un derecho que no debe violarse aunque exista una buena intención.',
-        retroalimentacion: {
-          postura: 'Deontología y derechos fundamentales.',
-          fortalezas: 'Protege la dignidad de la persona frente a usos instrumentales. Recuerda que no todo lo técnicamente posible es moralmente aceptable.',
-          objeciones: 'Puede parecer insuficiente ante situaciones de riesgo real donde la inacción también produce daños.',
-          autorReferencia: 'Immanuel Kant; tradiciones de derechos humanos.'
+        "texto": "No, porque la privacidad es un derecho que no debe violarse aunque exista una buena intención.",
+        "retroalimentacion": {
+          "postura": "Deontología y derechos fundamentales.",
+          "fortalezas": "Protege la dignidad de la persona frente a usos instrumentales. Recuerda que no todo lo técnicamente posible es moralmente aceptable.",
+          "objeciones": "Puede parecer insuficiente ante situaciones de riesgo real donde la inacción también produce daños.",
+          "autorReferencia": "Immanuel Kant; tradiciones de derechos humanos."
         }
       },
       {
-        texto: 'Solo sería aceptable con límites claros, consentimiento, transparencia y control ciudadano.',
-        retroalimentacion: {
-          postura: 'Ética de la información y gobernanza responsable.',
-          fortalezas: 'No rechaza la tecnología, pero exige condiciones institucionales: finalidad limitada, protección de datos, auditoría y posibilidad de retiro.',
-          objeciones: 'En la práctica, los controles pueden fallar o volverse meramente formales. Además, el consentimiento puede no ser libre si la app es obligatoria.',
-          autorReferencia: 'Luciano Floridi.'
+        "texto": "Solo sería aceptable con límites claros, consentimiento, transparencia y control ciudadano.",
+        "retroalimentacion": {
+          "postura": "Ética de la información y gobernanza responsable.",
+          "fortalezas": "No rechaza la tecnología, pero exige condiciones institucionales: finalidad limitada, protección de datos, auditoría y posibilidad de retiro.",
+          "objeciones": "En la práctica, los controles pueden fallar o volverse meramente formales. Además, el consentimiento puede no ser libre si la app es obligatoria.",
+          "autorReferencia": "Luciano Floridi."
         }
       }
     ],
-    cierre: 'Este dilema muestra que seguridad y privacidad no son valores aislados. Una solución filosóficamente responsable exige preguntar quién vigila, con qué límites, durante cuánto tiempo y con qué mecanismos de rendición de cuentas. La tecnología puede proteger, pero también puede acostumbrarnos a renunciar a libertades sin examinarlo.',
-    etiquetas: ['Privacidad', 'Smartphones', 'Seguridad'],
-    nivel: 'intermedio'
+    "cierre": "Este dilema muestra que seguridad y privacidad no son valores aislados. Una solución filosóficamente responsable exige preguntar quién vigila, con qué límites, durante cuánto tiempo y con qué mecanismos de rendición de cuentas. La tecnología puede proteger, pero también puede acostumbrarnos a renunciar a libertades sin examinarlo.",
+    "etiquetas": [
+      "Privacidad",
+      "Smartphones",
+      "Seguridad"
+    ],
+    "nivel": "intermedio"
+  },
+  {
+    "id": "algoritmo-contratacion",
+    "titulo": "¿Debe un algoritmo decidir quién obtiene un empleo?",
+    "imagenUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Sanzio_01.jpg?width=1200",
+    "imagenAlt": "La Escuela de Atenas — Rafael",
+    "contexto": "Una empresa recibe miles de solicitudes de trabajo y decide usar un sistema de inteligencia artificial para filtrar candidatos. El sistema promete rapidez y eficiencia, pero algunos aspirantes sospechan que reproduce sesgos contra ciertas universidades, edades o formas de redactar el currículum.\nEl departamento de recursos humanos afirma que el algoritmo solo ayuda a ordenar información. Sin embargo, para muchas personas la primera decisión —quién pasa y quién queda fuera— ya determina su posibilidad real de ser escuchadas.",
+    "preguntaCentral": "¿Es justo delegar decisiones laborales importantes a sistemas algorítmicos?",
+    "opciones": [
+      {
+        "texto": "Sí, si el algoritmo mejora la eficiencia y permite revisar más candidaturas.",
+        "retroalimentacion": {
+          "postura": "Consecuencialismo organizacional.",
+          "fortalezas": "Valora resultados prácticos: rapidez, reducción de carga administrativa y posibilidad de procesar grandes volúmenes de información.",
+          "objeciones": "La eficiencia no basta para justificar una decisión si el sistema oculta sesgos o impide que las personas comprendan por qué fueron rechazadas.",
+          "autorReferencia": "Jeremy Bentham; ética aplicada a organizaciones."
+        }
+      },
+      {
+        "texto": "No, porque una persona no debe ser reducida a datos procesados automáticamente.",
+        "retroalimentacion": {
+          "postura": "Deontología y dignidad humana.",
+          "fortalezas": "Subraya que el candidato debe ser tratado como fin en sí mismo, no como expediente estadístico. Exige respeto, explicación y trato individualizado.",
+          "objeciones": "Puede ignorar que los humanos también tienen sesgos y que un sistema bien auditado podría corregir algunos de ellos.",
+          "autorReferencia": "Immanuel Kant."
+        }
+      },
+      {
+        "texto": "Puede usarse como apoyo, pero la decisión final debe ser humana y auditable.",
+        "retroalimentacion": {
+          "postura": "Ética de la responsabilidad tecnológica.",
+          "fortalezas": "Busca un equilibrio: reconoce el valor técnico del sistema, pero exige supervisión humana, transparencia y mecanismos de apelación.",
+          "objeciones": "La supervisión humana puede volverse simbólica si quienes deciden confían ciegamente en la recomendación automática.",
+          "autorReferencia": "Hans Jonas; Luciano Floridi."
+        }
+      }
+    ],
+    "cierre": "La pregunta central no es si la tecnología puede ayudar, sino bajo qué condiciones puede intervenir en decisiones que afectan la vida de las personas. Una decisión laboral justa requiere eficiencia, pero también explicación, revisión, responsabilidad y reconocimiento de la dignidad del candidato.",
+    "etiquetas": [
+      "IA",
+      "Trabajo",
+      "Justicia"
+    ],
+    "nivel": "intermedio"
+  },
+  {
+    "id": "deepfake-verdad",
+    "titulo": "¿Compartirías un video viral aunque no sepas si es verdadero?",
+    "imagenUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/David%20-%20The%20Death%20of%20Socrates.jpg?width=1200",
+    "imagenAlt": "La muerte de Sócrates — Jacques-Louis David",
+    "contexto": "Durante una campaña estudiantil circula un video donde una candidata parece insultar a sus compañeros. El video se vuelve viral en minutos. Algunos estudiantes quieren compartirlo porque, si es verdadero, revela algo importante; otros advierten que podría tratarse de un montaje o de un deepfake.\nLa presión social es inmediata: quien no comparte parece indiferente, pero quien comparte sin verificar puede contribuir a destruir injustamente la reputación de una persona.",
+    "preguntaCentral": "¿Tenemos responsabilidad moral por la información que compartimos en redes?",
+    "opciones": [
+      {
+        "texto": "Sí, compartir sin verificar puede causar daño y nos hace parcialmente responsables.",
+        "retroalimentacion": {
+          "postura": "Ética de la responsabilidad y virtud epistémica.",
+          "fortalezas": "Defiende la prudencia, la honestidad intelectual y el cuidado de las consecuencias antes de amplificar información dudosa.",
+          "objeciones": "Puede ser difícil verificar todo en contextos de urgencia, especialmente cuando la información parece de interés público.",
+          "autorReferencia": "Hans Jonas; Aristóteles."
+        }
+      },
+      {
+        "texto": "No necesariamente: la responsabilidad principal es de quien creó el contenido falso.",
+        "retroalimentacion": {
+          "postura": "Responsabilidad individual restringida.",
+          "fortalezas": "Distingue entre producir engaño y circular algo sin conocer su falsedad. Evita cargar toda la culpa sobre usuarios comunes.",
+          "objeciones": "Ignora que la viralidad depende precisamente de miles de pequeñas decisiones de compartir. La ignorancia no siempre elimina la responsabilidad.",
+          "autorReferencia": "Hannah Arendt; ética de la acción."
+        }
+      },
+      {
+        "texto": "Depende del daño probable: si puede afectar gravemente a alguien, hay que detenerse antes de compartir.",
+        "retroalimentacion": {
+          "postura": "Utilitarismo prudencial.",
+          "fortalezas": "Evalúa consecuencias concretas: reputación, confianza pública, polarización y daño emocional. Propone detenerse cuando el riesgo es alto.",
+          "objeciones": "El cálculo de consecuencias puede ser incierto y llegar tarde cuando el contenido ya circula masivamente.",
+          "autorReferencia": "John Stuart Mill."
+        }
+      }
+    ],
+    "cierre": "La vida digital exige una ética de la atención. Compartir no es un gesto neutro: puede informar, pero también dañar. El pensamiento crítico aparece cuando interrumpimos la reacción inmediata y preguntamos por la fuente, el contexto, la evidencia y las personas afectadas.",
+    "etiquetas": [
+      "Deepfakes",
+      "Verdad",
+      "Redes sociales"
+    ],
+    "nivel": "introductorio"
+  },
+  {
+    "id": "celulares-aula",
+    "titulo": "¿Deberían prohibirse los celulares en clase?",
+    "imagenUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Rembrandt%20-%20The%20Philosopher%20in%20Meditation.jpg?width=1024",
+    "imagenAlt": "Filósofo en meditación — Rembrandt",
+    "contexto": "Una preparatoria debate si debe prohibir el uso de celulares durante las clases. Algunos docentes dicen que los teléfonos fragmentan la atención y dificultan la lectura profunda. Varios estudiantes responden que el celular también sirve para investigar, organizar tareas y comunicarse en emergencias.\nLa discusión no trata solo de disciplina escolar, sino de una pregunta más amplia: ¿cómo formar atención y autonomía en un entorno diseñado para interrumpirnos constantemente?",
+    "preguntaCentral": "¿Una prohibición del celular ayuda a pensar mejor o limita injustamente la autonomía del estudiante?",
+    "opciones": [
+      {
+        "texto": "Sí deberían prohibirse durante ciertos momentos para proteger la concentración.",
+        "retroalimentacion": {
+          "postura": "Ética de la virtud y formación del carácter.",
+          "fortalezas": "Entiende la atención como hábito que se cultiva. No toda restricción es opresión: algunas reglas ayudan a formar capacidades.",
+          "objeciones": "Una prohibición absoluta puede infantilizar al estudiante y evitar que aprenda a autorregularse en contextos reales.",
+          "autorReferencia": "Aristóteles."
+        }
+      },
+      {
+        "texto": "No deberían prohibirse; habría que enseñar a usarlos críticamente.",
+        "retroalimentacion": {
+          "postura": "Pragmatismo educativo.",
+          "fortalezas": "Busca educar para el mundo real, no crear una burbuja sin tecnología. Promueve responsabilidad y uso intencional.",
+          "objeciones": "Puede subestimar la fuerza del diseño persuasivo de las aplicaciones, especialmente en adolescentes.",
+          "autorReferencia": "John Dewey."
+        }
+      },
+      {
+        "texto": "Debe haber acuerdos flexibles: momentos sin celular y momentos de uso pedagógico.",
+        "retroalimentacion": {
+          "postura": "Ética del cuidado y deliberación comunitaria.",
+          "fortalezas": "Atiende tanto la necesidad de concentración como la utilidad educativa del dispositivo. Permite construir normas con participación de estudiantes y docentes.",
+          "objeciones": "La flexibilidad puede volverse ambigua si no hay criterios claros, consistencia y seguimiento.",
+          "autorReferencia": "Nel Noddings; comunidad de indagación."
+        }
+      }
+    ],
+    "cierre": "El problema no es solo el objeto llamado celular, sino la relación que construimos con él. Una respuesta formativa no tendría que elegir entre prohibición total y libertad sin criterios; puede diseñar espacios donde la tecnología tenga propósito, límites y sentido pedagógico.",
+    "etiquetas": [
+      "Atención",
+      "Escuela",
+      "Smartphones"
+    ],
+    "nivel": "introductorio"
+  },
+  {
+    "id": "cancelacion-digital",
+    "titulo": "¿Es justa la cancelación digital?",
+    "imagenUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Socrates%20Louvre.jpg?width=900",
+    "imagenAlt": "Sócrates — busto romano conservado en el Louvre",
+    "contexto": "Un profesor publica hace años un comentario ofensivo en redes sociales. Tiempo después, el comentario resurge y un grupo de estudiantes exige que sea expulsado de una conferencia. Otros argumentan que se disculpó, cambió su postura y debería permitirse el diálogo.\nLa comunidad se divide entre quienes ven la cancelación como exigencia de justicia y quienes la consideran una forma de castigo público sin espacio para la transformación moral.",
+    "preguntaCentral": "¿La cancelación digital es una forma legítima de responsabilidad pública o una práctica injusta de castigo social?",
+    "opciones": [
+      {
+        "texto": "Es legítima cuando visibiliza daños que antes eran ignorados.",
+        "retroalimentacion": {
+          "postura": "Justicia social y ética del reconocimiento.",
+          "fortalezas": "Permite que grupos afectados nombren daños, exijan responsabilidad y cuestionen privilegios que antes quedaban impunes.",
+          "objeciones": "Puede volverse punitiva, rápida y desproporcionada, sin distinguir entre error, patrón de daño y posibilidad de reparación.",
+          "autorReferencia": "Axel Honneth; teorías del reconocimiento."
+        }
+      },
+      {
+        "texto": "No es justa si impide el arrepentimiento y reduce a la persona a su peor acción.",
+        "retroalimentacion": {
+          "postura": "Ética de la virtud y responsabilidad moral compleja.",
+          "fortalezas": "Reconoce que las personas pueden cambiar. Subraya la importancia de proporcionalidad, contexto y aprendizaje moral.",
+          "objeciones": "Puede usarse para minimizar daños reales o pedir “diálogo” sin asumir reparación concreta.",
+          "autorReferencia": "Aristóteles; Hannah Arendt."
+        }
+      },
+      {
+        "texto": "Depende del procedimiento: debe haber escucha, contexto, reparación y límites al daño.",
+        "retroalimentacion": {
+          "postura": "Ética deliberativa.",
+          "fortalezas": "Evita tanto la impunidad como el linchamiento. Propone evaluar caso por caso con criterios de proporcionalidad y reparación.",
+          "objeciones": "En redes sociales es difícil sostener procedimientos deliberativos: la velocidad favorece reacción y polarización.",
+          "autorReferencia": "Jürgen Habermas."
+        }
+      }
+    ],
+    "cierre": "La cancelación digital revela una tensión entre justicia y castigo. Pensar filosóficamente el problema implica preguntar qué daño ocurrió, quién debe responder, qué reparación es posible y cómo evitar que la búsqueda de justicia se convierta en destrucción simbólica sin aprendizaje colectivo.",
+    "etiquetas": [
+      "Redes sociales",
+      "Justicia",
+      "Responsabilidad"
+    ],
+    "nivel": "avanzado"
+  },
+  {
+    "id": "datos-salud-publica",
+    "titulo": "¿Donarías tus datos para mejorar la salud pública?",
+    "imagenUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Plato%20Silanion%20Musei%20Capitolini%20MC1377.jpg?width=900",
+    "imagenAlt": "Platón — copia romana atribuida a Silanión",
+    "contexto": "Un hospital universitario pide a estudiantes compartir datos anónimos de actividad física, sueño y alimentación para entrenar un sistema que detecte riesgos de salud pública. El proyecto promete mejores diagnósticos y prevención, pero nadie puede garantizar que los datos no sean reidentificados o usados después por aseguradoras, empresas o gobiernos.\nParticipar podría ayudar a muchas personas; negarse protege la privacidad individual. La decisión parece sencilla hasta que se advierte que los beneficios y los riesgos no se reparten siempre de forma justa.",
+    "preguntaCentral": "¿Es moralmente correcto compartir datos personales si pueden beneficiar a la sociedad?",
+    "opciones": [
+      {
+        "texto": "Sí, compartir datos puede ser un acto solidario si produce beneficios de salud colectiva.",
+        "retroalimentacion": {
+          "postura": "Utilitarismo y bien común.",
+          "fortalezas": "Valora la posibilidad de prevenir enfermedades y mejorar políticas públicas. Considera que ciertos sacrificios individuales pueden justificarse por beneficios amplios.",
+          "objeciones": "Puede invisibilizar riesgos para minorías o personas vulnerables. Además, el bien común no debe convertirse en excusa para extraer datos sin garantías.",
+          "autorReferencia": "John Stuart Mill; bioética de salud pública."
+        }
+      },
+      {
+        "texto": "No, porque los datos personales forman parte de la autonomía y no deben entregarse bajo presión.",
+        "retroalimentacion": {
+          "postura": "Deontología y autonomía personal.",
+          "fortalezas": "Defiende consentimiento libre, información clara y límites al uso de la persona como medio para fines colectivos.",
+          "objeciones": "Puede resultar demasiado individualista ante problemas sanitarios que requieren cooperación social.",
+          "autorReferencia": "Immanuel Kant; principialismo bioético."
+        }
+      },
+      {
+        "texto": "Solo si hay anonimización fuerte, finalidad limitada, auditoría y posibilidad de retirar el consentimiento.",
+        "retroalimentacion": {
+          "postura": "Ética de la información y gobernanza de datos.",
+          "fortalezas": "Busca condiciones técnicas e institucionales para que la cooperación no implique vulnerabilidad excesiva.",
+          "objeciones": "La anonimización nunca es perfecta y la gobernanza puede fallar si no hay vigilancia independiente.",
+          "autorReferencia": "Luciano Floridi."
+        }
+      }
+    ],
+    "cierre": "Compartir datos puede ser una forma de solidaridad, pero solo si se respeta la autonomía y se distribuyen justamente riesgos y beneficios. La pregunta filosófica no es únicamente qué puede hacer la tecnología con nuestros datos, sino qué condiciones hacen legítimo ese uso.",
+    "etiquetas": [
+      "Datos",
+      "Salud pública",
+      "Privacidad"
+    ],
+    "nivel": "intermedio"
   }
 ];
+
 
 let state = { version: '1.0', dilemas: [] };
 let progress = { completados: [] };
@@ -853,12 +1164,7 @@ function renderStudentGallery() {
   const cards = state.dilemas.map((d, index) => `
     <article class="paper-card rounded-[1.6rem] overflow-hidden group">
       <div class="grid gap-0 md:grid-cols-[180px_1fr]">
-        <div class="dilemma-ornament min-h-[150px] p-5 flex flex-col justify-between">
-          <div class="serif text-5xl text-amber-900/30">${String(index + 1).padStart(2, '0')}</div>
-          <div>
-            <span class="badge">${escapeHTML(firstTag(d))}</span>
-          </div>
-        </div>
+        ${coverHTML(d, index, 'min-h-[190px] md:min-h-full') }
         <div class="p-6 md:p-7">
           <div class="flex flex-wrap items-center gap-2 mb-4">
             ${levelBadge(d.nivel)}
@@ -912,8 +1218,9 @@ function renderStudentContext() {
         <h1 class="serif mt-3 text-4xl font-light leading-tight tracking-tight text-stone-950 md:text-6xl">${escapeHTML(d.titulo)}</h1>
         <div class="mt-8 grid gap-8 lg:grid-cols-[1fr_260px]">
           <div class="serif space-y-5 text-lg leading-9 text-stone-700">${paragraphs}</div>
-          <aside class="rounded-[1.5rem] border thin-line bg-white/45 p-5">
-            <p class="text-xs uppercase tracking-[0.2em] text-stone-500">Temas</p>
+          <aside class="rounded-[1.5rem] border thin-line bg-white/45 p-4">
+            ${coverHTML(d, state.dilemas.findIndex(item => item.id === d.id), 'h-56 rounded-[1.2rem]')}
+            <p class="mt-5 text-xs uppercase tracking-[0.2em] text-stone-500">Temas</p>
             <div class="mt-4 flex flex-wrap gap-2">${(d.etiquetas || []).map(t => `<span class="badge">${escapeHTML(t)}</span>`).join('')}</div>
           </aside>
         </div>
@@ -1080,7 +1387,7 @@ function renderTeacherLogin() {
       <div class="max-w-3xl mx-auto">
         <section class="paper-card rounded-[2rem] p-8 md:p-10 text-center">
           <p class="text-xs uppercase tracking-[0.28em] text-amber-800">Firebase pendiente</p>
-          <h1 class="serif mt-3 text-4xl font-light text-stone-950">Conecta Firebase para activar el modo profesor global</h1>
+          <h1 class="serif mt-3 text-4xl font-light text-stone-950">Conecta Firebase para activar el acceso docente global</h1>
           <p class="mt-5 leading-8 text-stone-600">Mientras no pegues tu configuración de Firebase en el código, el editor seguirá funcionando solo en este navegador mediante localStorage.</p>
           <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
             ${buttonPrimary('Continuar en modo local →', 'renderTeacherDashboard()')}
@@ -1155,7 +1462,7 @@ function renderTeacherDashboard() {
     <tr class="border-t thin-line align-top">
       <td class="px-4 py-4">
         <div class="flex gap-4">
-          <div class="hidden h-16 w-16 shrink-0 rounded-2xl dilemma-ornament sm:flex items-center justify-center serif text-2xl text-amber-900/40">${i + 1}</div>
+          ${coverHTML(d, i, 'hidden h-16 w-16 shrink-0 rounded-2xl sm:block')}
           <div>
             <p class="font-semibold text-stone-950">${escapeHTML(d.titulo)}</p>
             <p class="mt-1 max-w-md text-sm leading-6 text-stone-600">${escapeHTML(d.preguntaCentral)}</p>
@@ -1216,6 +1523,8 @@ function emptyDilema() {
     titulo: '',
     contexto: '',
     preguntaCentral: '',
+    imagenUrl: '',
+    imagenAlt: '',
     opciones: [
       { texto: '', retroalimentacion: { postura: '', fortalezas: '', objeciones: '', autorReferencia: '' } },
       { texto: '', retroalimentacion: { postura: '', fortalezas: '', objeciones: '', autorReferencia: '' } },
@@ -1296,6 +1605,23 @@ function drawTeacherForm() {
             <label class="field-label">Pregunta filosófica central obligatoria</label>
             <input class="field mt-2" value="${escapeHTML(d.preguntaCentral)}" oninput="draftDilema.preguntaCentral=this.value" placeholder="Formula la pregunta que abre el dilema.">
           </div>
+          <div class="md:col-span-2 grid gap-5 lg:grid-cols-[1fr_260px]">
+            <div class="space-y-4">
+              <div>
+                <label class="field-label">Imagen de portada del dilema</label>
+                <input class="field mt-2" value="${escapeHTML(d.imagenUrl || '')}" oninput="draftDilema.imagenUrl=this.value" placeholder="Pega aquí una URL de imagen, por ejemplo de Wikimedia Commons">
+                <p class="mt-2 text-xs leading-5 text-stone-500">Se mostrará en la galería del alumno y en la vista del dilema. Si la URL falla, aparecerá un fondo editorial de respaldo.</p>
+              </div>
+              <div>
+                <label class="field-label">Descripción / crédito de la imagen</label>
+                <input class="field mt-2" value="${escapeHTML(d.imagenAlt || '')}" oninput="draftDilema.imagenAlt=this.value" placeholder="Ej. Immanuel Kant — retrato clásico">
+              </div>
+            </div>
+            <div>
+              <p class="field-label mb-2">Vista previa</p>
+              ${coverHTML(d, 0, 'h-48 rounded-[1.4rem]')}
+            </div>
+          </div>
           <div>
             <label class="field-label">Etiquetas opcionales</label>
             <input class="field mt-2" value="${escapeHTML((d.etiquetas || []).join(', '))}" oninput="draftDilema.etiquetas=this.value.split(',').map(t=>t.trim()).filter(Boolean)" placeholder="IA, privacidad, redes sociales">
@@ -1367,6 +1693,8 @@ async function saveDilemaFromForm() {
   draftDilema.titulo = draftDilema.titulo.trim();
   draftDilema.contexto = draftDilema.contexto.trim();
   draftDilema.preguntaCentral = draftDilema.preguntaCentral.trim();
+  draftDilema.imagenUrl = (draftDilema.imagenUrl || '').trim();
+  draftDilema.imagenAlt = (draftDilema.imagenAlt || '').trim();
   draftDilema.cierre = draftDilema.cierre.trim();
   draftDilema.nivel = draftDilema.nivel || 'introductorio';
   draftDilema.etiquetas = Array.isArray(draftDilema.etiquetas) ? draftDilema.etiquetas.filter(Boolean) : [];
